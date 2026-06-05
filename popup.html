@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadence Auto-Refresher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header Section -->
+    <header class="header">
+      <div class="logo-area">
+        <h1 class="title">CADENCE</h1>
+        <p class="subtitle">Auto-Refresher</p>
+      </div>
+      <div class="status-indicator" id="status-indicator">
+        <span class="pulse-dot"></span>
+        <span class="status-text" id="status-text">INACTIVE</span>
+      </div>
+    </header>
+
+    <!-- Main Configuration Panel -->
+    <main class="config-panel">
+      <!-- Mode Selection Segment -->
+      <section class="section">
+        <h2 class="section-title">REFRESH MODE</h2>
+        <div class="mode-selector">
+          <button class="mode-btn active" data-mode="full">FULL</button>
+          <button class="mode-btn" data-mode="content">CONTENT</button>
+          <button class="mode-btn" data-mode="component">COMPONENT</button>
+        </div>
+      </section>
+
+      <!-- Advanced Target Selectors (Hidden by default, shown based on Mode) -->
+      <section class="section hidden" id="selector-config">
+        <h2 class="section-title">TARGET CONFIGURATION</h2>
+        <div class="input-group" id="group-dropdown-selector">
+          <label for="dropdown-selector">DROPDOWN (SELECT) SELECTOR</label>
+          <input type="text" id="dropdown-selector" placeholder="e.g. select#consulate_id" value="select#consulate_id">
+        </div>
+        <div class="input-group" id="group-container-selector">
+          <label for="container-selector">DATE CONTAINER SELECTOR</label>
+          <input type="text" id="container-selector" placeholder="e.g. #calendar-wrapper" value="#calendar-wrapper">
+        </div>
+      </section>
+
+      <!-- Interval Selection -->
+      <section class="section">
+        <h2 class="section-title">INTERVAL</h2>
+        <div class="interval-grid">
+          <button class="interval-btn" data-seconds="5">5S</button>
+          <button class="interval-btn" data-seconds="10">10S</button>
+          <button class="interval-btn" data-seconds="15">15S</button>
+          <button class="interval-btn" data-seconds="30">30S</button>
+          <button class="interval-btn" data-seconds="60">1M</button>
+          <button class="interval-btn" data-seconds="120">2M</button>
+          <button class="interval-btn" data-seconds="300">5M</button>
+          <button class="interval-btn" id="custom-btn">CUSTOM</button>
+        </div>
+        
+        <!-- Custom Interval Input -->
+        <div class="custom-interval-wrapper hidden" id="custom-interval-wrapper">
+          <input type="number" id="custom-seconds" placeholder="INTERVAL IN SECONDS" min="5" value="10">
+          <span class="unit">S</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- Master Action Section -->
+    <section class="action-panel">
+      <button class="trigger-once-btn" id="trigger-once-btn">REFRESH ONCE</button>
+      <button class="master-toggle" id="master-toggle">ACTIVATE</button>
+    </section>
+
+    <!-- Footer Meta -->
+    <footer class="footer">
+      <span>LOCAL &amp; TAB-SCOPED</span>
+      <span>V1.0.0</span>
+    </footer>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

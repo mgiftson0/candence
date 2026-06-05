@@ -1,0 +1,325 @@
+/**
+ * popup.css
+ * 
+ * Cadence Monochromatic Editorial Design System.
+ * Adheres strictly to the white, black, and gray color palette.
+ * Implements a geometric grid structure with no border-radius.
+ */
+
+:root {
+  --color-white: #ffffff;
+  --color-charcoal: #000000;
+  --color-gray-dark: #222222;
+  --color-gray-medium: #777777;
+  --color-gray-light: #e5e5e5;
+  --color-gray-bg: #fafafa;
+  
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  
+  --border-thick: 1.5px solid var(--color-charcoal);
+  --border-thin: 1px solid var(--color-charcoal);
+  --border-subtle: 1px solid var(--color-gray-light);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 320px;
+  background-color: var(--color-white);
+  color: var(--color-charcoal);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  min-height: 420px;
+}
+
+/* ============================================================================
+   Header Styling
+   ============================================================================ */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: var(--border-thick);
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+}
+
+.logo-area {
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--color-gray-medium);
+  margin-top: 4px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: var(--border-thin);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--color-charcoal);
+  border-radius: 50%;
+  transition: transform 0.3s ease;
+}
+
+/* Pulse animation when auto-refresh is active */
+.active .pulse-dot {
+  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.610, 0.355, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.85);
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.6);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 5px rgba(0, 0, 0, 0);
+  }
+  100% {
+    transform: scale(0.85);
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
+}
+
+/* ============================================================================
+   Configuration Sections
+   ============================================================================ */
+
+.section {
+  margin-bottom: 18px;
+}
+
+.section-title {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-gray-medium);
+  margin-bottom: 8px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Mode Switcher Grid */
+.mode-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background-color: var(--color-charcoal);
+  border: var(--border-thin);
+}
+
+.mode-btn {
+  background-color: var(--color-white);
+  border: none;
+  color: var(--color-charcoal);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  padding: 8px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-btn:hover {
+  background-color: var(--color-gray-bg);
+}
+
+.mode-btn.active {
+  background-color: var(--color-charcoal);
+  color: var(--color-white);
+}
+
+/* Advanced Configuration Inputs */
+#selector-config {
+  background-color: var(--color-gray-bg);
+  border: var(--border-thin);
+  padding: 12px;
+}
+
+.input-group {
+  margin-bottom: 10px;
+}
+
+.input-group:last-child {
+  margin-bottom: 0;
+}
+
+.input-group label {
+  display: block;
+  font-size: 8px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.input-group input {
+  width: 100%;
+  background-color: var(--color-white);
+  border: var(--border-thin);
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-charcoal);
+  outline: none;
+}
+
+.input-group input:focus {
+  background-color: var(--color-white);
+  box-shadow: 0 0 0 1px var(--color-charcoal);
+}
+
+/* Interval Grid */
+.interval-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.interval-btn {
+  background-color: var(--color-white);
+  border: var(--border-thin);
+  color: var(--color-charcoal);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 6px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.interval-btn:hover {
+  background-color: var(--color-gray-bg);
+}
+
+.interval-btn.active {
+  background-color: var(--color-charcoal);
+  color: var(--color-white);
+}
+
+/* Custom Interval Field */
+.custom-interval-wrapper {
+  display: flex;
+  align-items: center;
+  border: var(--border-thin);
+}
+
+.custom-interval-wrapper input {
+  flex-grow: 1;
+  border: none;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+
+.custom-interval-wrapper .unit {
+  padding: 0 12px;
+  border-left: var(--border-thin);
+  font-weight: 600;
+}
+
+/* ============================================================================
+   Action Panel Buttons
+   ============================================================================ */
+
+.action-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.trigger-once-btn {
+  background-color: var(--color-white);
+  border: var(--border-thin);
+  color: var(--color-charcoal);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 10px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.trigger-once-btn:hover {
+  background-color: var(--color-gray-bg);
+}
+
+.master-toggle {
+  background-color: var(--color-charcoal);
+  border: var(--border-thick);
+  color: var(--color-white);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.master-toggle:hover {
+  background-color: var(--color-gray-dark);
+}
+
+.master-toggle.active {
+  background-color: var(--color-white);
+  color: var(--color-charcoal);
+}
+
+.master-toggle.active:hover {
+  background-color: var(--color-gray-bg);
+}
+
+/* ============================================================================
+   Footer Meta Styling
+   ============================================================================ */
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  border-top: var(--border-subtle);
+  margin-top: 15px;
+  padding-top: 8px;
+  font-size: 7.5px;
+  color: var(--color-gray-medium);
+  letter-spacing: 0.1em;
+}

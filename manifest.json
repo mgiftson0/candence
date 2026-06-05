@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Cadence Auto-Refresher",
+  "version": "1.0.0",
+  "description": "An elegant, editorial auto-refresh extension with full page, content-only, and targeted dropdown component refreshes.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+Create a fully functional, open-source Chrome extension with the following features:
+Core Functionality:
+
+A Full Page Refresh button that reloads the entire current tab
+A Content Refresh toggle (on/off switch) that refreshes only the page content (without a full reload) using DOM manipulation / fetch on the current URL
+An interval selector where the user can choose how often the auto-refresh runs (options: 5s, 10s, 15s, 30s, 1min, 2min, 5min, or a custom input field)
+All refresh activity must be limited strictly to the active tab — no background data collection, no tracking, no analytics, no external requests
+
+Design & Aesthetic:
+
+Color palette: pure white, charcoal black, and mid grays only — no color accents
+Typography: stylish, editorial fonts from Google Fonts (e.g. pair a sharp display font like Syne or DM Serif Display with a clean mono or sans like IBM Plex Mono) — must feel designed, not default
+Layout: compact popup (around 320×420px), geometric and structured, with intentional use of negative space
+Micro-interactions: subtle hover states, smooth toggle animation, a pulsing indicator when auto-refresh is active
+Must not look AI-generated — sharp, human-designed editorial feel
+
+Code Structure (Open Source Ready):
+
+manifest.json — Chrome Manifest V3, minimal permissions (tabs, scripting, activeTab only)
+popup.html — Extension UI shell
+popup.css — All styles, using CSS custom properties
+popup.js — UI logic, interval management, state handling
+content.js — Injected script that handles content-only refresh via location.reload() or targeted DOM fetch
+background.js — Service worker for managing alarms/timers across tab focus changes
+README.md — Clear open-source documentation with usage instructions, permissions explanation, and contribution guide
+
+Comments Style:
+
+Write comments like a thoughtful senior engineer — explain why, not just what
+Use section dividers and descriptive block comments
+No excessive inline noise; only comment where it genuinely adds clarity
+
+Legal & Safety:
+
+Only request the minimum permissions needed
+No user data stored or transmitted anywhere
+All operations are local and tab-scoped
+Include a LICENSE file (MIT)
+Add a note in README clarifying this extension only automates what a user could do manually (refresh), making it fully compliant with standard browser extension policies. check how the avits poratl works and also on the booking page theres is dropdown when selected one will refresh the dates components and this doesnt refresh the whole page so i want this component to be able to refesh it without refreshing the whole page. and check thorughly how the avits portal works before starting. and save this prompt in a file
+
+Additional user requests:
+- i also want a better name
