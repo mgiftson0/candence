@@ -180,6 +180,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     })();
   }
+
+  // Handle auto-refresh pause triggered by user activity on the webpage
+  if (message.action === 'PAUSE_REFRESH') {
+    (async () => {
+      const state = await getTabState(tabId);
+      if (state && state.enabled) {
+        state.enabled = false;
+        state.paused = true; // Mark as paused due to user activity
+        await setTabState(tabId, state);
+        await chrome.alarms.clear(`${ALARM_PREFIX}${tabId}`);
+        chrome.tabs.sendMessage(tabId, { action: 'STOP_TIMER' }).catch(() => {});
+        
+        // Notify popup to sync its visual status
+        chrome.runtime.sendMessage({ action: 'STATE_UPDATED', tabId, state }).catch(() => {});
+      }
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+});
+
+// Launch extension popup in a draggable & resizable popup window
+chrome.action.onClicked.addListener(() => {
+  chrome.windows.create({
+    url: 'popup.html',
+    type: 'popup',
+    width: 340,
+    height: 480
+  });
 });
 
 // Clean up state and alarms when a tab is closed

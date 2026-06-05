@@ -133,23 +133,47 @@ function scheduleNextTick(intervalSeconds) {
   if (intervalSeconds >= 60) return;
 
   localTimer = setTimeout(() => {
-    chrome.runtime.sendMessage({ action: 'SUB_MINUTE_TICK' });
+    // Only send the tick to trigger a refresh if the user isn't hovering the target area
+    if (isUserHoveringRefreshArea) {
+      console.log('[Cadence] Tick skipped: User is hovering in the refresh area.');
+      // Postpone: schedule another check in 1 second
+      scheduleNextTick(1);
+    } else {
+      chrome.runtime.sendMessage({ action: 'SUB_MINUTE_TICK' });
+    }
   }, intervalSeconds * 1000);
 }
 
 // Listen for messages from background.js or popup.js
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'TRIGGER_CONTENT_REFRESH') {
+    if (isUserHoveringRefreshArea) {
+      console.log('[Cadence] Content refresh blocked: user hovering container.');
+      sendResponse({ success: false, reason: 'hovering' });
+      return;
+    }
+    
     if (message.mode === 'content') {
       performContentSwap(message.dateContainerSelector);
     } else if (message.mode === 'component') {
       simulateDropdownInteraction(message.dropdownSelector);
     }
     sendResponse({ success: true });
+    
+    // Re-attach hover monitoring listeners if elements were replaced
+    setTimeout(attachHoverListeners, 500);
+  }
+
+  if (message.action === 'CHECK_CAN_REFRESH') {
+    sendResponse({ 
+      canRefresh: !isUserHoveringRefreshArea, 
+      reason: isUserHoveringRefreshArea ? 'hovering' : 'ready' 
+    });
   }
 
   if (message.action === 'SYNC_TIMER') {
     currentTabState = message.state;
+    attachHoverListeners();
     if (currentTabState && currentTabState.enabled && currentTabState.interval < 60) {
       scheduleNextTick(currentTabState.interval);
     } else {
@@ -164,6 +188,120 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// ============================================================================
+// User Action Monitoring & Dynamic Pausing
+// ============================================================================
+
+let isUserHoveringRefreshArea = false;
+
+/**
+ * Attaches hover listeners to the date container to pause refresh while user works.
+ */
+function attachHoverListeners() {
+  if (!currentTabState || !currentTabState.dateContainerSelector || !currentTabState.enabled) {
+    removeFloatingStatusBadge();
+    return;
+  }
+  
+  const container = document.querySelector(currentTabState.dateContainerSelector);
+  if (!container) return;
+
+  if (container.dataset.cadenceHoverBound) return;
+  container.dataset.cadenceHoverBound = 'true';
+
+  container.addEventListener('mouseenter', () => {
+    isUserHoveringRefreshArea = true;
+    showFloatingStatusBadge(container, true);
+  });
+
+  container.addEventListener('mouseleave', () => {
+    isUserHoveringRefreshArea = false;
+    showFloatingStatusBadge(container, false);
+  });
+}
+
+/**
+ * Render a tiny floating status badge inside the monitored container.
+ */
+function showFloatingStatusBadge(container, show) {
+  let badge = document.getElementById('cadence-status-badge');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'cadence-status-badge';
+    badge.style.position = 'absolute';
+    badge.style.top = '8px';
+    badge.style.right = '8px';
+    badge.style.backgroundColor = '#000000';
+    badge.style.color = '#ffffff';
+    badge.style.border = '1px solid #ffffff';
+    badge.style.padding = '3px 6px';
+    badge.style.fontFamily = 'monospace';
+    badge.style.fontSize = '8px';
+    badge.style.fontWeight = 'bold';
+    badge.style.zIndex = '9999';
+    badge.style.letterSpacing = '0.05em';
+    badge.style.pointerEvents = 'none';
+  }
+
+  if (show && container) {
+    if (getComputedStyle(container).position === 'static') {
+      container.style.position = 'relative';
+    }
+    badge.textContent = 'CADENCE: REFRESH PAUSED (HOVERING)';
+    container.appendChild(badge);
+  } else {
+    removeFloatingStatusBadge();
+  }
+}
+
+function removeFloatingStatusBadge() {
+  const badge = document.getElementById('cadence-status-badge');
+  if (badge) badge.remove();
+}
+
+/**
+ * Render a fixed notification alert when auto-refresh is fully deactivated by page action.
+ */
+function showStoppedNotification() {
+  const note = document.createElement('div');
+  note.style.position = 'fixed';
+  note.style.bottom = '24px';
+  note.style.right = '24px';
+  note.style.backgroundColor = '#000000';
+  note.style.color = '#ffffff';
+  note.style.border = '1.5px solid #ffffff';
+  note.style.padding = '10px 16px';
+  note.style.fontFamily = 'monospace';
+  note.style.fontSize = '10px';
+  note.style.fontWeight = 'bold';
+  note.style.letterSpacing = '0.05em';
+  note.style.zIndex = '100000';
+  note.textContent = 'CADENCE: AUTO-REFRESH STOPPED';
+  
+  document.body.appendChild(note);
+  setTimeout(() => note.remove(), 2500);
+}
+
+// Listen for global clicks on the page to permanently deactivate auto-refresh
+document.addEventListener('click', (event) => {
+  if (!currentTabState || !currentTabState.enabled) return;
+
+  const target = event.target;
+  const isInteractive = target.closest('button, input, select, a, .day-tile, [role="button"]');
+  const isInsideContainer = currentTabState.dateContainerSelector && target.closest(currentTabState.dateContainerSelector);
+
+  if (isInteractive || isInsideContainer) {
+    console.log('[Cadence] User click detected. Requesting auto-refresh termination.');
+    isUserHoveringRefreshArea = false;
+    removeFloatingStatusBadge();
+    
+    chrome.runtime.sendMessage({ action: 'STOP_REFRESH' }, (res) => {
+      currentTabState.enabled = false;
+      showStoppedNotification();
+    });
+  }
+});
+
 // Auto-initialize if state was already active on full reloads
 (async () => {
   try {
@@ -171,6 +309,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (chrome.runtime.lastError) return;
       if (response && response.state) {
         currentTabState = response.state;
+        attachHoverListeners();
         if (currentTabState.enabled && currentTabState.interval < 60) {
           scheduleNextTick(currentTabState.interval);
         }

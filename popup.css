@@ -29,7 +29,9 @@
 }
 
 body {
-  width: 320px;
+  min-width: 280px;
+  width: 100%;
+  height: 100vh;
   background-color: var(--color-white);
   color: var(--color-charcoal);
   font-family: var(--font-mono);
@@ -37,13 +39,15 @@ body {
   letter-spacing: 0.05em;
   line-height: 1.5;
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .container {
   display: flex;
   flex-direction: column;
   padding: 20px;
-  min-height: 420px;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 /* ============================================================================

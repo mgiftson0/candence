@@ -7,8 +7,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Get currently active tab ID
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  // Get currently active tab ID from the last focused browsing window
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!tab) return;
   const tabId = tab.id;
 
@@ -210,5 +210,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       state = { ...state, ...response.state };
     }
     updateUI();
+  });
+
+  // Listen for state changes (e.g. if content script paused auto-refresh)
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'STATE_UPDATED' && message.tabId === tabId) {
+      state = { ...state, ...message.state };
+      updateUI();
+    }
   });
 });
