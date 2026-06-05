@@ -194,6 +194,11 @@ body {
   margin-bottom: 4px;
 }
 
+.input-with-action {
+  display: flex;
+  gap: 6px;
+}
+
 .input-group input {
   width: 100%;
   background-color: var(--color-white);
@@ -208,6 +213,35 @@ body {
 .input-group input:focus {
   background-color: var(--color-white);
   box-shadow: 0 0 0 1px var(--color-charcoal);
+}
+
+.pick-btn {
+  background-color: var(--color-white);
+  border: var(--border-thin);
+  color: var(--color-charcoal);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.pick-btn:hover {
+  background-color: var(--color-charcoal);
+  color: var(--color-white);
+}
+
+.pick-btn.active {
+  background-color: var(--color-charcoal);
+  color: var(--color-white);
+  animation: picker-pulse 1s ease infinite alternate;
+}
+
+@keyframes picker-pulse {
+  0% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
 
 /* Interval Grid */

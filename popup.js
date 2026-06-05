@@ -27,14 +27,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const customSecondsInput = document.getElementById('custom-seconds');
   const triggerOnceBtn = document.getElementById('trigger-once-btn');
   const masterToggle = document.getElementById('master-toggle');
+  const pickDropdownBtn = document.getElementById('pick-dropdown-btn');
+  const pickContainerBtn = document.getElementById('pick-container-btn');
 
   // Default Local State
   let state = {
     enabled: false,
     mode: 'full', // 'full', 'content', 'component'
     interval: 10,  // in seconds
-    dropdownSelector: 'select#consulate_id',
-    dateContainerSelector: '.calendar-table, #calendar-wrapper, .dates-wrapper',
+    dropdownSelector: 'mat-select, select#consulate_id',
+    dateContainerSelector: '.calendar-table, #calendar-wrapper, .dates-wrapper, mat-form-field',
     lastRefresh: null
   };
 
@@ -154,6 +156,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveAndSyncIfNeeded();
   });
 
+  // ============================================================================
+  // Element Picker (PICK Mode)
+  // Instructs the content script to enter pick mode: hovers highlight elements,
+  // clicks capture a unique CSS selector and send it back to this popup.
+  // ============================================================================
+
+  let activePicker = null; // 'dropdown' | 'container' | null
+
+  function startPicker(target) {
+    // Cancel any existing picker session first
+    chrome.tabs.sendMessage(tabId, { action: 'STOP_PICKER' }, () => {
+      chrome.runtime.lastError; // suppress
+    });
+
+    activePicker = target;
+    pickDropdownBtn.classList.toggle('active', target === 'dropdown');
+    pickContainerBtn.classList.toggle('active', target === 'container');
+
+    // Minimise popup by focusing the tab so user can click on the page
+    chrome.tabs.update(tabId, { active: true });
+    chrome.tabs.sendMessage(tabId, { action: 'START_PICKER' }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('[Cadence] Content script not ready for picker.');
+        activePicker = null;
+      }
+    });
+  }
+
+  pickDropdownBtn.addEventListener('click', () => {
+    if (activePicker === 'dropdown') {
+      // Second click cancels
+      activePicker = null;
+      pickDropdownBtn.classList.remove('active');
+      chrome.tabs.sendMessage(tabId, { action: 'STOP_PICKER' }, () => { chrome.runtime.lastError; });
+    } else {
+      startPicker('dropdown');
+    }
+  });
+
+  pickContainerBtn.addEventListener('click', () => {
+    if (activePicker === 'container') {
+      activePicker = null;
+      pickContainerBtn.classList.remove('active');
+      chrome.tabs.sendMessage(tabId, { action: 'STOP_PICKER' }, () => { chrome.runtime.lastError; });
+    } else {
+      startPicker('container');
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Storage-based picker result listener (more reliable than sendMessage
+  // for standalone popup windows that may not have focus when result arrives)
+  // ─────────────────────────────────────────────────────────────────────────
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.cadence_picker_result || !activePicker) return;
+
+    const { selector } = changes.cadence_picker_result.newValue;
+
+    if (activePicker === 'dropdown') {
+      dropdownSelectorInput.value = selector;
+      state.dropdownSelector = selector;
+      pickDropdownBtn.classList.remove('active');
+    } else if (activePicker === 'container') {
+      containerSelectorInput.value = selector;
+      state.dateContainerSelector = selector;
+      pickContainerBtn.classList.remove('active');
+    }
+
+    activePicker = null;
+    saveAndSyncIfNeeded();
+
+    // Clean up the storage key so old results don't replay on next open
+    chrome.storage.local.remove('cadence_picker_result');
+  });
+
+  // STATE_UPDATED arrives from background when the page pauses/stops refresh
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'STATE_UPDATED' && message.tabId === tabId) {
+      state = { ...state, ...message.state };
+      updateUI();
+    }
+  });
+
   // Immediate single refresh execution
   triggerOnceBtn.addEventListener('click', () => {
     chrome.tabs.sendMessage(tabId, {
@@ -210,13 +295,5 @@ document.addEventListener('DOMContentLoaded', async () => {
       state = { ...state, ...response.state };
     }
     updateUI();
-  });
-
-  // Listen for state changes (e.g. if content script paused auto-refresh)
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.action === 'STATE_UPDATED' && message.tabId === tabId) {
-      state = { ...state, ...message.state };
-      updateUI();
-    }
   });
 });
