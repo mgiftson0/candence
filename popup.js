@@ -370,19 +370,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Immediate single refresh execution
+  // Immediate single refresh execution (routes through background's triggerRefresh)
   triggerOnceBtn.addEventListener('click', () => {
-    chrome.tabs.sendMessage(tabId, {
-      action: 'TRIGGER_CONTENT_REFRESH',
-      mode: state.mode,
-      dropdownSelector: state.dropdownSelector,
-      dateContainerSelector: state.dateContainerSelector
-    }, (response) => {
-      if (chrome.runtime.lastError || state.mode === 'full') {
-        // Fallback to full page reload if content script is unavailable
-        chrome.tabs.reload(tabId);
-      }
-    });
+    if (state.mode === 'full') {
+      chrome.tabs.reload(tabId);
+    } else {
+      // Trigger one refresh cycle through background.js (which uses executeScript)
+      chrome.runtime.sendMessage({
+        action: 'START_REFRESH',
+        tabId,
+        state: { ...state, enabled: false } // one-shot, don't leave it enabled
+      }, () => {
+        // Force an immediate trigger
+        chrome.runtime.sendMessage({ action: 'TRIGGER_ONCE', tabId });
+      });
+    }
   });
 
   // Master Activate/Deactivate Toggle

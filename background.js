@@ -39,6 +39,8 @@ async function setTabState(tabId, state) {
 
 /**
  * Triggers the refresh action on a tab based on its state.
+ * Uses chrome.scripting.executeScript for component/content modes to avoid
+ * relying on content script message listeners (which break after extension reloads).
  * @param {number} tabId 
  * @param {Object} state 
  */
@@ -49,21 +51,87 @@ async function triggerRefresh(tabId, state) {
     if (!tab) return;
 
     if (state.mode === 'full') {
-      // Full page refresh using native chrome tabs API
       chrome.tabs.reload(tabId);
-    } else {
-      // Content-only or Component-level refresh requires content script cooperation
-      chrome.tabs.sendMessage(tabId, {
-        action: 'TRIGGER_CONTENT_REFRESH',
-        mode: state.mode,
-        dropdownSelector: state.dropdownSelector,
-        dateContainerSelector: state.dateContainerSelector
-      }, (response) => {
-        // Handle potential channel closure when tab is loading or script is not ready
-        if (chrome.runtime.lastError) {
-          console.warn(`Content script not ready on tab ${tabId}. Retrying with full reload fallback.`);
-        }
-      });
+    } else if (state.mode === 'component') {
+      // Inject the dropdown simulation directly into the page
+      const selector = state.dropdownSelector || '';
+      chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: (sel) => {
+          const el = document.querySelector(sel);
+          if (!el) return;
+
+          // Angular Material mat-select
+          const isMatSelect = el.tagName.toLowerCase() === 'mat-select' || el.closest('mat-form-field');
+          if (isMatSelect) {
+            let matSelect = el.tagName.toLowerCase() === 'mat-select' ? el : el.querySelector('mat-select') || el;
+            matSelect.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            matSelect.click();
+            setTimeout(() => {
+              const options = document.querySelectorAll('mat-option, .mat-option');
+              let selectedIndex = -1;
+              options.forEach((opt, i) => {
+                if (opt.classList.contains('mat-selected') || opt.getAttribute('aria-selected') === 'true') selectedIndex = i;
+              });
+              const tmpIdx = selectedIndex === 0 ? 1 : 0;
+              if (options[tmpIdx]) {
+                options[tmpIdx].click();
+                setTimeout(() => {
+                  matSelect.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                  matSelect.click();
+                  setTimeout(() => {
+                    const freshOpts = document.querySelectorAll('mat-option, .mat-option');
+                    if (freshOpts[selectedIndex]) freshOpts[selectedIndex].click();
+                  }, 200);
+                }, 200);
+              }
+            }, 200);
+            return;
+          }
+
+          // Native <select>
+          if (el.tagName === 'SELECT' && el.options && el.options.length > 1) {
+            const origIdx = el.selectedIndex;
+            const tmpIdx = origIdx === 0 ? 1 : 0;
+            el.selectedIndex = tmpIdx;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            setTimeout(() => {
+              el.selectedIndex = origIdx;
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+            }, 250);
+            return;
+          }
+
+          // Generic: just click it
+          el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+          el.click();
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+        args: [selector]
+      }).catch(err => console.warn('[Cadence] Component refresh injection failed:', err));
+    } else if (state.mode === 'content') {
+      // Content-swap mode: re-fetch the page and replace a container
+      const containerSel = state.dateContainerSelector || '';
+      chrome.scripting.executeScript({
+        target: { tabId },
+        func: async (sel) => {
+          try {
+            const resp = await fetch(window.location.href, { cache: 'no-store' });
+            if (!resp.ok) return;
+            const html = await resp.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            if (sel) {
+              const target = document.querySelector(sel);
+              const source = doc.querySelector(sel);
+              if (target && source) target.innerHTML = source.innerHTML;
+            } else {
+              document.body.innerHTML = doc.body.innerHTML;
+            }
+          } catch (e) { console.error('[Cadence] Content swap failed:', e); }
+        },
+        args: [containerSel]
+      }).catch(err => console.warn('[Cadence] Content refresh injection failed:', err));
     }
 
     // Update last refresh timestamp
@@ -71,9 +139,7 @@ async function triggerRefresh(tabId, state) {
     await setTabState(tabId, state);
     
     // Notify popup if it's open
-    chrome.runtime.sendMessage({ action: 'STATE_UPDATED', tabId, state }).catch(() => {
-      // Suppress error if popup is closed
-    });
+    chrome.runtime.sendMessage({ action: 'STATE_UPDATED', tabId, state }).catch(() => {});
   } catch (error) {
     console.error(`Failed to refresh tab ${tabId}:`, error);
   }
@@ -194,6 +260,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         
         // Notify popup to sync its visual status
         chrome.runtime.sendMessage({ action: 'STATE_UPDATED', tabId, state }).catch(() => {});
+      }
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
+  // One-shot immediate trigger from popup's "Refresh Once" button
+  if (message.action === 'TRIGGER_ONCE') {
+    (async () => {
+      const state = await getTabState(tabId);
+      if (state) {
+        await triggerRefresh(tabId, state);
       }
       sendResponse({ success: true });
     })();
