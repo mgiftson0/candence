@@ -202,9 +202,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Launch extension popup in a draggable & resizable popup window
-chrome.action.onClicked.addListener(() => {
+// The `tab` parameter from onClicked is the tab the user was viewing —
+// pass it via query string so the popup always targets the correct tab.
+chrome.action.onClicked.addListener((tab) => {
   chrome.windows.create({
-    url: 'popup.html',
+    url: `popup.html?tabId=${tab.id}`,
     type: 'popup',
     width: 340,
     height: 480

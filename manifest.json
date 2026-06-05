@@ -5,6 +5,7 @@
   "description": "An elegant, editorial auto-refresh extension with full page, content-only, and targeted dropdown component refreshes.",
   "permissions": [
     "activeTab",
+    "tabs",
     "scripting",
     "storage",
     "alarms"
