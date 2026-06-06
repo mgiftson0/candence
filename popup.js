@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   function injectPicker() {
     chrome.scripting.executeScript({
-      target: { tabId },
+      target: { tabId, allFrames: true },
       func: () => {
         // ── Bail if picker is already running ──
         if (window.__cadencePickerActive) return;
@@ -289,14 +289,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   /** Inject a cleanup call to stop the picker in the tab */
   function injectPickerStop() {
     chrome.scripting.executeScript({
-      target: { tabId },
+      target: { tabId, allFrames: true },
       func: () => {
         if (!window.__cadencePickerActive) return;
         window.__cadencePickerActive = false;
         document.body.style.cursor = '';
         const ov = document.getElementById('__cadence_picker_overlay');
         if (ov) ov.remove();
-        // Can't easily remove anonymous listeners, but the flag prevents them from firing
       }
     }).catch(() => {});
   }
