@@ -43,6 +43,7 @@ Many booking sites load dates dynamically after choosing a location from a dropd
 To maintain maximum privacy, `Cadence` utilizes only the minimum permissions required:
 
 *   `activeTab`: Grants the extension scripting access to the current, user-activated tab only when the popup is open or when auto-refresh is active.
+*   `host_permissions`: Grants persistent script execution permissions across URLs, ensuring timers and element triggers run reliably.
 *   `scripting`: Allows injecting helper scripts to perform DOM swaps or event dispatches.
 *   `storage`: Used to persist your interval choices and CSS selector preferences per tab.
 *   `alarms`: Manages service worker timers in the background so refresh cycles are handled reliably.
