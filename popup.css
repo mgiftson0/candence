@@ -194,6 +194,19 @@ body {
   margin-bottom: 4px;
 }
 
+.label-muted {
+  color: var(--color-gray-medium);
+  font-weight: 400;
+}
+
+.input-hint {
+  display: block;
+  font-size: 7.5px;
+  color: var(--color-gray-medium);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
 .input-with-action {
   display: flex;
   gap: 6px;
@@ -242,6 +255,36 @@ body {
 @keyframes picker-pulse {
   0% { opacity: 0.7; }
   100% { opacity: 1; }
+}
+
+/* Interaction Type Selector */
+.interaction-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background-color: var(--color-charcoal);
+  border: var(--border-thin);
+}
+
+.interaction-btn {
+  background-color: var(--color-white);
+  border: none;
+  color: var(--color-charcoal);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  padding: 6px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.interaction-btn:hover {
+  background-color: var(--color-gray-bg);
+}
+
+.interaction-btn.active {
+  background-color: var(--color-charcoal);
+  color: var(--color-white);
 }
 
 /* Interval Grid */

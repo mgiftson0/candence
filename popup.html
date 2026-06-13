@@ -35,22 +35,39 @@
         </div>
       </section>
 
-      <!-- Advanced Target Selectors (Hidden by default, shown based on Mode) -->
+      <!-- Target Element Configuration (shown for content & component modes) -->
       <section class="section hidden" id="selector-config">
         <h2 class="section-title">TARGET CONFIGURATION</h2>
-        <div class="input-group" id="group-dropdown-selector">
-          <label for="dropdown-selector">DROPDOWN (SELECT) SELECTOR</label>
+
+        <!-- Target Element — the element Cadence will interact with -->
+        <div class="input-group" id="group-target-selector">
+          <label for="target-selector">TARGET ELEMENT</label>
           <div class="input-with-action">
-            <input type="text" id="dropdown-selector" placeholder="e.g. select#consulate_id" value="select#consulate_id">
-            <button class="pick-btn" id="pick-dropdown-btn">PICK</button>
+            <input type="text" id="target-selector" placeholder="Click PICK, then click any element on the page">
+            <button class="pick-btn" id="pick-target-btn">PICK</button>
           </div>
+          <span class="input-hint" id="target-hint"></span>
         </div>
-        <div class="input-group" id="group-container-selector">
-          <label for="container-selector">DATE CONTAINER SELECTOR</label>
-          <div class="input-with-action">
-            <input type="text" id="container-selector" placeholder="e.g. #calendar-wrapper" value="#calendar-wrapper">
-            <button class="pick-btn" id="pick-container-btn">PICK</button>
+
+        <!-- Interaction Type — how Cadence interacts with the target -->
+        <div class="input-group" id="group-interaction-type">
+          <label>INTERACTION</label>
+          <div class="interaction-selector">
+            <button class="interaction-btn active" data-interaction="auto">AUTO</button>
+            <button class="interaction-btn" data-interaction="toggle">TOGGLE</button>
+            <button class="interaction-btn" data-interaction="click">CLICK</button>
           </div>
+          <span class="input-hint">AUTO detects element type. TOGGLE switches value back & forth. CLICK just clicks.</span>
+        </div>
+
+        <!-- Watch Zone (optional) — hover over this area pauses refresh -->
+        <div class="input-group" id="group-watch-zone">
+          <label for="watch-zone-selector">WATCH ZONE <span class="label-muted">(OPTIONAL)</span></label>
+          <div class="input-with-action">
+            <input type="text" id="watch-zone-selector" placeholder="Hover-pause area — e.g. calendar or results container">
+            <button class="pick-btn" id="pick-watch-btn">PICK</button>
+          </div>
+          <span class="input-hint">Hovering this area pauses auto-refresh so you can interact.</span>
         </div>
       </section>
 
@@ -85,7 +102,7 @@
     <!-- Footer Meta -->
     <footer class="footer">
       <span>LOCAL &amp; TAB-SCOPED</span>
-      <span>V1.0.0</span>
+      <span>V1.1.0</span>
     </footer>
   </div>
   

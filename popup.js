@@ -4,19 +4,19 @@
  * Cadence Auto-Refresher Popup Controller
  * Manages configuration UI, persists settings per tab, and sends activation/deactivation
  * messages to the service worker background context.
+ * 
+ * Universal element targeting: pick any element on the page (dropdown, button, 
+ * date selector, input, etc.) and Cadence will interact with it on each interval.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
   // ──────────────────────────────────────────────────────────────────────────
   // Resolve the TARGET tab ID.
-  // background.js passes it via ?tabId= when creating the popup window.
-  // Fallback: query for the active tab in a *normal* browser window.
   // ──────────────────────────────────────────────────────────────────────────
   const params = new URLSearchParams(window.location.search);
   let tabId = params.has('tabId') ? parseInt(params.get('tabId'), 10) : null;
 
   if (!tabId) {
-    // Fallback: find active tab in a normal (non-popup, non-extension) window
     const tabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
     const realTab = tabs.find(t => !t.url.startsWith('chrome'));
     if (realTab) tabId = realTab.id;
@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (!tabId) return;
 
-  // Store this popup's own window ID so we can refocus it after picking
   const popupWindowId = (await chrome.windows.getCurrent()).id;
 
   // DOM Elements
@@ -32,35 +31,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statusText = document.getElementById('status-text');
   const modeButtons = document.querySelectorAll('.mode-btn');
   const selectorConfig = document.getElementById('selector-config');
-  const dropdownSelectorInput = document.getElementById('dropdown-selector');
-  const containerSelectorInput = document.getElementById('container-selector');
-  const groupDropdown = document.getElementById('group-dropdown-selector');
-  const groupContainer = document.getElementById('group-container-selector');
+  const targetSelectorInput = document.getElementById('target-selector');
+  const watchZoneSelectorInput = document.getElementById('watch-zone-selector');
+  const groupTargetSelector = document.getElementById('group-target-selector');
+  const groupInteractionType = document.getElementById('group-interaction-type');
+  const groupWatchZone = document.getElementById('group-watch-zone');
+  const interactionButtons = document.querySelectorAll('.interaction-btn');
+  const targetHint = document.getElementById('target-hint');
   const intervalButtons = document.querySelectorAll('.interval-btn');
   const customBtn = document.getElementById('custom-btn');
   const customIntervalWrapper = document.getElementById('custom-interval-wrapper');
   const customSecondsInput = document.getElementById('custom-seconds');
   const triggerOnceBtn = document.getElementById('trigger-once-btn');
   const masterToggle = document.getElementById('master-toggle');
-  const pickDropdownBtn = document.getElementById('pick-dropdown-btn');
-  const pickContainerBtn = document.getElementById('pick-container-btn');
+  const pickTargetBtn = document.getElementById('pick-target-btn');
+  const pickWatchBtn = document.getElementById('pick-watch-btn');
 
   // Default Local State
   let state = {
     enabled: false,
-    mode: 'full', // 'full', 'content', 'component'
-    interval: 10,  // in seconds
-    dropdownSelector: 'mat-select, select#consulate_id',
-    dateContainerSelector: '.calendar-table, #calendar-wrapper, .dates-wrapper, mat-form-field',
+    mode: 'full',          // 'full', 'content', 'component'
+    interval: 10,           // seconds
+    targetSelector: '',     // the element to interact with
+    watchZoneSelector: '',  // hover-pause area (optional)
+    interactionType: 'auto', // 'auto', 'toggle', 'click'
     lastRefresh: null
   };
 
   // ============================================================================
-  // UI Sync Functions
+  // UI Sync
   // ============================================================================
 
   function updateUI() {
-    // 1. Sync Status Indicator
+    // Status
     if (state.enabled) {
       statusIndicator.classList.add('active');
       statusText.textContent = 'ACTIVE';
@@ -73,33 +76,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       masterToggle.classList.remove('active');
     }
 
-    // 2. Sync Mode Buttons
+    // Mode buttons
     modeButtons.forEach(btn => {
-      if (btn.getAttribute('data-mode') === state.mode) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
+      btn.classList.toggle('active', btn.getAttribute('data-mode') === state.mode);
     });
 
-    // Show/Hide target configuration based on selected mode
+    // Show/hide configuration panel
     if (state.mode === 'content') {
       selectorConfig.classList.remove('hidden');
-      groupDropdown.classList.add('hidden'); // Content swap doesn't need dropdown select
-      groupContainer.classList.remove('hidden');
+      groupTargetSelector.classList.add('hidden');
+      groupInteractionType.classList.add('hidden');
+      groupWatchZone.classList.remove('hidden');
     } else if (state.mode === 'component') {
       selectorConfig.classList.remove('hidden');
-      groupDropdown.classList.remove('hidden');
-      groupContainer.classList.remove('hidden');
+      groupTargetSelector.classList.remove('hidden');
+      groupInteractionType.classList.remove('hidden');
+      groupWatchZone.classList.remove('hidden');
     } else {
       selectorConfig.classList.add('hidden');
     }
 
-    // 3. Sync Inputs
-    dropdownSelectorInput.value = state.dropdownSelector || '';
-    containerSelectorInput.value = state.dateContainerSelector || '';
+    // Inputs
+    targetSelectorInput.value = state.targetSelector || '';
+    watchZoneSelectorInput.value = state.watchZoneSelector || '';
 
-    // 4. Sync Interval Buttons
+    // Interaction type buttons
+    interactionButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-interaction') === state.interactionType);
+    });
+
+    // Interval buttons
     let isPreset = false;
     intervalButtons.forEach(btn => {
       const secs = parseInt(btn.getAttribute('data-seconds'), 10);
@@ -134,13 +140,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Selector changes
-  [dropdownSelectorInput, containerSelectorInput].forEach(input => {
-    input.addEventListener('input', () => {
-      state.dropdownSelector = dropdownSelectorInput.value;
-      state.dateContainerSelector = containerSelectorInput.value;
+  // Interaction Type Selection
+  interactionButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.interactionType = btn.getAttribute('data-interaction');
+      updateUI();
       saveAndSyncIfNeeded();
     });
+  });
+
+  // Selector input changes
+  targetSelectorInput.addEventListener('input', () => {
+    state.targetSelector = targetSelectorInput.value;
+    saveAndSyncIfNeeded();
+  });
+  watchZoneSelectorInput.addEventListener('input', () => {
+    state.watchZoneSelector = watchZoneSelectorInput.value;
+    saveAndSyncIfNeeded();
   });
 
   // Preset Intervals
@@ -155,11 +171,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Custom Interval Trigger
+  // Custom Interval
   customBtn.addEventListener('click', () => {
     customBtn.classList.add('active');
     customIntervalWrapper.classList.remove('hidden');
-    // Deselect all presets
     intervalButtons.forEach(btn => btn.classList.remove('active'));
     state.interval = parseInt(customSecondsInput.value, 10) || 10;
     saveAndSyncIfNeeded();
@@ -167,34 +182,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   customSecondsInput.addEventListener('input', () => {
     state.interval = parseInt(customSecondsInput.value, 10) || 5;
-    if (state.interval < 5) state.interval = 5; // Enforce minimum interval of 5 seconds
+    if (state.interval < 5) state.interval = 5;
     saveAndSyncIfNeeded();
   });
 
   // ============================================================================
-  // Element Picker (DevTools-style direct injection)
-  // Uses chrome.scripting.executeScript to inject the picker directly into the
-  // page — no content script messaging required. Works like DevTools' inspector.
+  // Element Picker (DevTools-style, all frames)
   // ============================================================================
 
-  let activePicker = null; // 'dropdown' | 'container' | null
+  let activePicker = null; // 'target' | 'watch' | null
 
-  /**
-   * Injects a self-contained element picker into the target tab.
-   * The picker highlights hovered elements, captures a CSS selector on click,
-   * writes the result to chrome.storage.local, and tears itself down.
-   */
   function injectPicker() {
     chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
       func: () => {
-        // ── Bail if picker is already running ──
         if (window.__cadencePickerActive) return;
         window.__cadencePickerActive = true;
 
         const OVERLAY_ID = '__cadence_picker_overlay';
 
-        // ── Build a unique CSS selector for an element ──
         function buildSelector(el) {
           if (!el || el === document.body) return 'body';
           const parts = [];
@@ -218,7 +224,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           return parts.join(' > ');
         }
 
-        // ── Create/update the highlight overlay ──
+        /** Detect the element type for display in the overlay label */
+        function describeElement(el) {
+          const tag = el.tagName.toLowerCase();
+          if (tag === 'mat-select' || el.closest('mat-form-field')?.querySelector('mat-select')) return 'MAT-SELECT';
+          if (tag === 'select') return 'SELECT';
+          if (tag === 'button' || el.getAttribute('role') === 'button') return 'BUTTON';
+          if (tag === 'a') return 'LINK';
+          if (tag === 'input') return 'INPUT:' + (el.type || 'text').toUpperCase();
+          if (tag === 'mat-datepicker-toggle' || el.closest('mat-datepicker-toggle')) return 'DATEPICKER';
+          if (tag.startsWith('mat-')) return tag.toUpperCase();
+          return tag.toUpperCase();
+        }
+
         function showOverlay(el) {
           removeOverlay();
           if (!el) return;
@@ -232,16 +250,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             zIndex: '2147483646', pointerEvents: 'none', boxSizing: 'border-box',
             transition: 'all 0.08s ease'
           });
-          // Selector label
           const lbl = document.createElement('div');
           Object.assign(lbl.style, {
             position: 'absolute', bottom: '100%', left: '0',
             background: '#000', color: '#fff', fontFamily: 'monospace',
             fontSize: '10px', padding: '2px 6px', whiteSpace: 'nowrap',
-            maxWidth: '360px', overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis',
             pointerEvents: 'none', borderRadius: '2px 2px 0 0'
           });
-          lbl.textContent = buildSelector(el);
+          const type = describeElement(el);
+          lbl.textContent = `[${type}] ${buildSelector(el)}`;
           ov.appendChild(lbl);
           document.body.appendChild(ov);
         }
@@ -251,19 +269,22 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (ex) ex.remove();
         }
 
-        // ── Event handlers ──
-        function onMove(e) {
-          showOverlay(e.target);
-        }
+        function onMove(e) { showOverlay(e.target); }
+
         function onClick(e) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          const selector = buildSelector(e.target);
+
+          const el = e.target;
+          const selector = buildSelector(el);
+          const elementType = describeElement(el);
           cleanup();
-          // Write result to storage — popup listens via onChanged
-          chrome.storage.local.set({ cadence_picker_result: { selector, ts: Date.now() } });
+          chrome.storage.local.set({
+            cadence_picker_result: { selector, elementType, ts: Date.now() }
+          });
         }
+
         function onKey(e) {
           if (e.key === 'Escape') cleanup();
         }
@@ -277,7 +298,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           removeOverlay();
         }
 
-        // ── Activate ──
         document.body.style.cursor = 'crosshair';
         document.addEventListener('mouseover', onMove, true);
         document.addEventListener('click', onClick, true);
@@ -286,7 +306,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  /** Inject a cleanup call to stop the picker in the tab */
   function injectPickerStop() {
     chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
@@ -300,36 +319,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).catch(() => {});
   }
 
-  function startPicker(target) {
-    injectPickerStop(); // cancel any existing session
-    activePicker = target;
-    pickDropdownBtn.classList.toggle('active', target === 'dropdown');
-    pickContainerBtn.classList.toggle('active', target === 'container');
+  function startPicker(which) {
+    injectPickerStop();
+    activePicker = which;
+    pickTargetBtn.classList.toggle('active', which === 'target');
+    pickWatchBtn.classList.toggle('active', which === 'watch');
 
-    // Focus the browsing tab so user can interact with the page
     chrome.tabs.update(tabId, { active: true });
-
-    // Small delay to let the tab gain focus before injecting
     setTimeout(() => injectPicker(), 150);
   }
 
-  pickDropdownBtn.addEventListener('click', () => {
-    if (activePicker === 'dropdown') {
+  pickTargetBtn.addEventListener('click', () => {
+    if (activePicker === 'target') {
       activePicker = null;
-      pickDropdownBtn.classList.remove('active');
+      pickTargetBtn.classList.remove('active');
       injectPickerStop();
     } else {
-      startPicker('dropdown');
+      startPicker('target');
     }
   });
 
-  pickContainerBtn.addEventListener('click', () => {
-    if (activePicker === 'container') {
+  pickWatchBtn.addEventListener('click', () => {
+    if (activePicker === 'watch') {
       activePicker = null;
-      pickContainerBtn.classList.remove('active');
+      pickWatchBtn.classList.remove('active');
       injectPickerStop();
     } else {
-      startPicker('container');
+      startPicker('watch');
     }
   });
 
@@ -339,29 +355,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes.cadence_picker_result || !activePicker) return;
 
-    const { selector } = changes.cadence_picker_result.newValue;
+    const { selector, elementType } = changes.cadence_picker_result.newValue;
 
-    if (activePicker === 'dropdown') {
-      dropdownSelectorInput.value = selector;
-      state.dropdownSelector = selector;
-      pickDropdownBtn.classList.remove('active');
-    } else if (activePicker === 'container') {
-      containerSelectorInput.value = selector;
-      state.dateContainerSelector = selector;
-      pickContainerBtn.classList.remove('active');
+    if (activePicker === 'target') {
+      targetSelectorInput.value = selector;
+      state.targetSelector = selector;
+      pickTargetBtn.classList.remove('active');
+      targetHint.textContent = `Detected: ${elementType}`;
+    } else if (activePicker === 'watch') {
+      watchZoneSelectorInput.value = selector;
+      state.watchZoneSelector = selector;
+      pickWatchBtn.classList.remove('active');
     }
 
     activePicker = null;
     saveAndSyncIfNeeded();
 
-    // Clean up so old results don't replay
     chrome.storage.local.remove('cadence_picker_result');
-
-    // Bring the popup window back to the front
     chrome.windows.update(popupWindowId, { focused: true });
   });
 
-  // STATE_UPDATED arrives from background when the page pauses/stops refresh
+  // STATE_UPDATED from background when the page stops refresh
   chrome.runtime.onMessage.addListener((message) => {
     if (message.action === 'STATE_UPDATED' && message.tabId === tabId) {
       state = { ...state, ...message.state };
@@ -369,19 +383,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Immediate single refresh execution (routes through background's triggerRefresh)
+  // Immediate single refresh
   triggerOnceBtn.addEventListener('click', () => {
     if (state.mode === 'full') {
       chrome.tabs.reload(tabId);
     } else {
-      // Trigger one refresh cycle through background.js (which uses executeScript)
       chrome.runtime.sendMessage({
-        action: 'START_REFRESH',
+        action: 'TRIGGER_ONCE',
         tabId,
-        state: { ...state, enabled: false } // one-shot, don't leave it enabled
-      }, () => {
-        // Force an immediate trigger
-        chrome.runtime.sendMessage({ action: 'TRIGGER_ONCE', tabId });
+        state: { ...state }
       });
     }
   });
@@ -389,13 +399,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Master Activate/Deactivate Toggle
   masterToggle.addEventListener('click', () => {
     if (state.enabled) {
-      // Deactivate
       state.enabled = false;
       chrome.runtime.sendMessage({ action: 'STOP_REFRESH', tabId }, () => {
         updateUI();
       });
     } else {
-      // Activate
       state.enabled = true;
       chrome.runtime.sendMessage({ action: 'START_REFRESH', tabId, state }, () => {
         updateUI();
@@ -403,15 +411,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  /**
-   * Helper to write state updates back to background and update timer.
-   */
   function saveAndSyncIfNeeded() {
     if (state.enabled) {
-      // Re-trigger START_REFRESH to synchronize service worker alarms and timers
       chrome.runtime.sendMessage({ action: 'START_REFRESH', tabId, state });
     } else {
-      // Just save locally in storage so it persists for the popup session
       const key = `tab_state_${tabId}`;
       chrome.storage.local.set({ [key]: state });
     }
@@ -421,7 +424,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialization
   // ============================================================================
 
-  // Fetch state on startup
   chrome.runtime.sendMessage({ action: 'GET_STATE', tabId }, (response) => {
     if (response && response.state) {
       state = { ...state, ...response.state };

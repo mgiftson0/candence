@@ -90,7 +90,7 @@ async function startDynamicTimer(tabId, state) {
 
             const target = event.target;
             const isInteractive = target.closest('button, input, select, a, .day-tile, [role="button"]');
-            const isInsideContainer = tabState.dateContainerSelector && target.closest(tabState.dateContainerSelector);
+            const isInsideContainer = tabState.watchZoneSelector ? target.closest(tabState.watchZoneSelector) : null;
 
             if (isInteractive || isInsideContainer) {
               console.log('[Cadence] User action detected. Deactivating auto-refresh.');
@@ -115,10 +115,10 @@ async function startDynamicTimer(tabId, state) {
         // 2. High-precision scheduling loop (only run in top-level frame to prevent duplicates)
         if (window === window.top) {
           const tick = () => {
-            // Check if user is hovering the date container selector in top frame
+            // Check if user is hovering the watch zone selector in top frame
             let isHovered = false;
-            if (tabState.dateContainerSelector) {
-              const containers = document.querySelectorAll(tabState.dateContainerSelector);
+            if (tabState.watchZoneSelector) {
+              const containers = document.querySelectorAll(tabState.watchZoneSelector);
               for (const c of containers) {
                 if (c.matches(':hover')) {
                   isHovered = true;
@@ -203,76 +203,151 @@ async function triggerRefresh(tabId, state) {
     if (state.mode === 'full') {
       chrome.tabs.reload(tabId);
     } else if (state.mode === 'component') {
-      // Inject dropdown simulation into all frames to support iframes
-      const selector = state.dropdownSelector || '';
+      const selector = state.targetSelector || '';
+      const interactionType = state.interactionType || 'auto';
+
+      if (!selector) {
+        console.warn('[Cadence] Component refresh aborted: No target element selector provided.');
+        return;
+      }
+
       chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
         world: 'MAIN', // Execute directly in the page environment to run native handlers
-        func: (sel) => {
+        func: (sel, type) => {
           const el = document.querySelector(sel);
           if (!el) return;
 
-          console.log(`[Cadence] Found target element in frame:`, el);
+          console.log(`[Cadence] Found target element:`, el, `Interaction type: ${type}`);
 
-          // Angular Material mat-select dropdowns
-          const isMatSelect = el.tagName.toLowerCase() === 'mat-select' || el.closest('mat-form-field');
-          if (isMatSelect) {
-            let matSelect = el.tagName.toLowerCase() === 'mat-select' ? el : el.querySelector('mat-select') || el;
-            matSelect.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-            matSelect.click();
-            setTimeout(() => {
-              const options = document.querySelectorAll('mat-option, .mat-option');
-              let selectedIndex = -1;
-              options.forEach((opt, i) => {
-                if (opt.classList.contains('mat-selected') || opt.getAttribute('aria-selected') === 'true') {
-                  selectedIndex = i;
+          const tag = el.tagName.toLowerCase();
+          const role = el.getAttribute('role');
+          const isSelect = tag === 'select';
+          const isCustomSelect = !isSelect && (
+            tag.startsWith('mat-') ||
+            tag.includes('select') ||
+            el.closest('mat-select') ||
+            role === 'combobox' ||
+            el.classList.contains('dropdown-toggle') ||
+            el.closest('.dropdown-toggle') ||
+            el.closest('[role="combobox"]')
+          );
+          
+          let targetEl = el;
+          // Resolve custom select wrapper if targeted on child elements
+          if (isCustomSelect) {
+            targetEl = el.closest('mat-select') || el.closest('[role="combobox"]') || el.closest('.dropdown-toggle') || el;
+          }
+
+          const dispatchMouseEvent = (element, eventName) => {
+            const ev = new MouseEvent(eventName, {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            element.dispatchEvent(ev);
+          };
+
+          const dispatchSimpleEvent = (element, eventName) => {
+            const ev = new Event(eventName, { bubbles: true });
+            element.dispatchEvent(ev);
+          };
+
+          if (type === 'click') {
+            dispatchMouseEvent(targetEl, 'mousedown');
+            targetEl.click();
+            dispatchMouseEvent(targetEl, 'mouseup');
+            return;
+          }
+
+          // Toggle or Auto behaviour
+          if (type === 'toggle' || type === 'auto') {
+            // Standard Select Dropdown
+            if (isSelect && targetEl.options && targetEl.options.length > 1) {
+              const origIdx = targetEl.selectedIndex;
+              const tmpIdx = origIdx === 0 ? 1 : 0;
+              targetEl.selectedIndex = tmpIdx;
+              dispatchSimpleEvent(targetEl, 'change');
+              
+              setTimeout(() => {
+                targetEl.selectedIndex = origIdx;
+                dispatchSimpleEvent(targetEl, 'change');
+              }, 250);
+              return;
+            }
+
+            // Checkbox / Radio
+            if (targetEl.type === 'checkbox' || targetEl.type === 'radio') {
+              targetEl.checked = !targetEl.checked;
+              dispatchSimpleEvent(targetEl, 'change');
+              dispatchSimpleEvent(targetEl, 'input');
+              return;
+            }
+
+            // Custom Select Dropdowns (Angular Material, ngx-select, bootstrap dropdowns, etc.)
+            if (isCustomSelect || tag === 'mat-select' || role === 'combobox' || targetEl.closest('mat-form-field')) {
+              const selectEl = targetEl.closest('mat-select') || targetEl.closest('[role="combobox"]') || targetEl.closest('.dropdown-toggle') || targetEl;
+              
+              // 1. Open the dropdown
+              dispatchMouseEvent(selectEl, 'mousedown');
+              selectEl.click();
+              
+              // 2. Wait for options to render, then select another one and restore the original
+              setTimeout(() => {
+                const options = Array.from(document.querySelectorAll('mat-option, [role="option"], .mat-option, .dropdown-option, .ngx-option, .dropdown-item, .dropdown-menu li a'));
+                if (options.length === 0) {
+                  console.log('[Cadence] Custom dropdown options not found in DOM.');
+                  return;
                 }
-              });
-              const tmpIdx = selectedIndex === 0 ? 1 : 0;
-              if (options[tmpIdx]) {
-                options[tmpIdx].click();
-                setTimeout(() => {
-                  matSelect.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-                  matSelect.click();
+
+                let selectedIndex = options.findIndex(opt => 
+                  opt.classList.contains('mat-selected') || 
+                  opt.classList.contains('selected') ||
+                  opt.classList.contains('active') ||
+                  opt.getAttribute('aria-selected') === 'true'
+                );
+
+                if (selectedIndex === -1) selectedIndex = 0;
+                const tmpIdx = selectedIndex === 0 ? Math.min(1, options.length - 1) : 0;
+
+                if (options[tmpIdx]) {
+                  console.log(`[Cadence] Toggling dropdown: index ${tmpIdx} then returning to ${selectedIndex}`);
+                  options[tmpIdx].click();
+                  dispatchSimpleEvent(selectEl, 'change');
+
+                  // 3. Open it again to restore the original value
                   setTimeout(() => {
-                    const freshOpts = document.querySelectorAll('mat-option, .mat-option');
-                    if (freshOpts[selectedIndex]) freshOpts[selectedIndex].click();
+                    dispatchMouseEvent(selectEl, 'mousedown');
+                    selectEl.click();
+
+                    setTimeout(() => {
+                      const freshOptions = Array.from(document.querySelectorAll('mat-option, [role="option"], .mat-option, .dropdown-option, .ngx-option, .dropdown-item, .dropdown-menu li a'));
+                      if (freshOptions[selectedIndex]) {
+                        freshOptions[selectedIndex].click();
+                        dispatchSimpleEvent(selectEl, 'change');
+                      }
+                    }, 200);
                   }, 200);
-                }, 200);
-              }
-            }, 200);
-            return;
-          }
+                }
+              }, 250);
+              return;
+            }
 
-          // Native dropdown select elements
-          if (el.tagName === 'SELECT' && el.options && el.options.length > 1) {
-            const origIdx = el.selectedIndex;
-            const tmpIdx = origIdx === 0 ? 1 : 0;
-            el.selectedIndex = tmpIdx;
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            setTimeout(() => {
-              el.selectedIndex = origIdx;
-              el.dispatchEvent(new Event('change', { bubbles: true }));
-            }, 250);
-            return;
+            // Default fallback: click
+            dispatchMouseEvent(targetEl, 'mousedown');
+            targetEl.click();
+            dispatchMouseEvent(targetEl, 'mouseup');
           }
-
-          // Generic clickable component fallback
-          el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-          el.click();
-          el.dispatchEvent(new Event('change', { bubbles: true }));
         },
-        args: [selector]
+        args: [selector, interactionType]
       }).catch(err => console.warn('[Cadence] Component trigger execution failed:', err));
 
     } else if (state.mode === 'content') {
-      // Content-only DOM swap (allFrames: true is used to update the matching section wherever it resides)
-      const containerSel = state.dateContainerSelector || '';
+      const containerSel = state.watchZoneSelector || '';
       chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
         func: async (sel) => {
           try {
-            // Warn if trying to use fetch on local files (CORS block)
             if (window.location.protocol === 'file:') {
               console.warn('[Cadence] Content-swap fetches are blocked on file:// protocols. Reloading page instead.');
               window.location.reload();
@@ -303,11 +378,9 @@ async function triggerRefresh(tabId, state) {
       }).catch(err => console.warn('[Cadence] Content swap execution failed:', err));
     }
 
-    // Record last refresh time
     state.lastRefresh = Date.now();
     await setTabState(tabId, state);
     
-    // Broadcast status to Popup
     chrome.runtime.sendMessage({ action: 'STATE_UPDATED', tabId, state }).catch(() => {});
   } catch (error) {
     console.error(`[Cadence] Failed to refresh tab ${tabId}:`, error);
